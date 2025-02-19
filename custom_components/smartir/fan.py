@@ -108,6 +108,7 @@ class SmartIRFan(FanEntity, RestoreEntity):
         self._direction = None
         self._last_on_speed = None
         self._oscillating = None
+        self._on_button = None
         self._support_flags = (
             FanEntityFeature.SET_SPEED
             | FanEntityFeature.TURN_OFF
@@ -122,6 +123,8 @@ class SmartIRFan(FanEntity, RestoreEntity):
             self._oscillating = False
             self._support_flags = (
                 self._support_flags | FanEntityFeature.OSCILLATE)
+        if ('on' in self._commands):
+            self._on_button = True
 
 
         self._temp_lock = asyncio.Lock()
@@ -275,6 +278,8 @@ class SmartIRFan(FanEntity, RestoreEntity):
             elif oscillating:
                 command = self._commands['oscillate']
             else:
+                if (self._on_button):
+                    await self._controller.send(self._commands['on'])
                 command = self._commands[direction][speed] 
 
             try:
