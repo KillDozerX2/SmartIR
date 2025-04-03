@@ -32,6 +32,7 @@ CONF_DEVICE_CODE = 'device_code'
 CONF_CONTROLLER_DATA = "controller_data"
 CONF_DELAY = "delay"
 CONF_POWER_SENSOR = 'power_sensor'
+CONF_POWER_SWITCH = 'power_switch'
 
 SPEED_OFF = "off"
 
@@ -41,6 +42,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_DEVICE_CODE): cv.positive_int,
     vol.Required(CONF_CONTROLLER_DATA): cv.string,
     vol.Optional(CONF_DELAY, default=DEFAULT_DELAY): cv.string,
+    vol.Optional(CONF_POWER_SWITCH): cv.entity_id,
     vol.Optional(CONF_POWER_SENSOR): cv.entity_id
 })
 
@@ -95,6 +97,7 @@ class SmartIRFan(FanEntity, RestoreEntity):
         self._device_code = config.get(CONF_DEVICE_CODE)
         self._controller_data = config.get(CONF_CONTROLLER_DATA)
         self._delay = config.get(CONF_DELAY)
+        self._power_switch = config.get(CONF_POWER_SWITCH)
         self._power_sensor = config.get(CONF_POWER_SENSOR)
 
         self._manufacturer = device_data['manufacturer']
@@ -256,6 +259,10 @@ class SmartIRFan(FanEntity, RestoreEntity):
 
     async def async_turn_on(self, percentage: int = None, preset_mode: str = None, **kwargs):
         """Turn on the fan."""
+        if self._power_switch:
+            await self.hass.services.async_call(
+                "switch", "turn_on", {"entity_id": self._power_switch}, blocking=True
+            )
         if percentage is None:
             percentage = ordered_list_item_to_percentage(
                 self._speed_list, self._last_on_speed or self._speed_list[0])
@@ -265,6 +272,10 @@ class SmartIRFan(FanEntity, RestoreEntity):
     async def async_turn_off(self):
         """Turn off the fan."""
         await self.async_set_percentage(0)
+        if self._power_switch:
+            await self.hass.services.async_call(
+                "switch", "turn_off", {"entity_id": self._power_switch}, blocking=True
+            )
 
     async def send_command(self):
         async with self._temp_lock:
