@@ -106,6 +106,7 @@ class SmartIRFan(FanEntity, RestoreEntity):
         self._commands_encoding = device_data['commandsEncoding']
         self._speed_list = device_data['speed']
         self._commands = device_data['commands']
+        self._power_mapping = device_data.get('powerMapping')
         
         self._speed = SPEED_OFF
         self._direction = None
@@ -161,8 +162,11 @@ class SmartIRFan(FanEntity, RestoreEntity):
                 self._last_on_speed = last_state.attributes['last_on_speed']
 
             if self._power_sensor:
-                async_track_state_change(self.hass, self._power_sensor, 
-                                         self._async_power_sensor_changed)
+                async_track_state_change(
+                    self.hass, self._power_sensor,
+                    self._async_power_sensor_changed
+                )
+
 
     @property
     def unique_id(self):
@@ -298,21 +302,43 @@ class SmartIRFan(FanEntity, RestoreEntity):
             except Exception as e:
                 _LOGGER.exception(e)
 
+    def power_to_speed(self, watts):
+        try:
+            watts = float(watts)
+            _LOGGER.warning(f"{watts} read from sensor")
+            if watts <= self._power_mapping['off']:
+                _LOGGER.warning(f"Reading zero watts and setting to speed off")
+                return SPEED_OFF
+            for speed in self._speed_list:
+                _LOGGER.warning(f"Finding Max Power for Speed {speed}")
+                max_power = self._power_mapping.get(speed)
+                _LOGGER.warning(f"Found Max Power - {max_power} for Speed {speed}")
+                if max_power is not None and watts < max_power:
+                    _LOGGER.warning(f"Returning Speed {speed}")
+                    return speed
+        except Exception as e:
+            _LOGGER.warning(f"Error converting power to speed: {e}")
+            return None
+
+
     async def _async_power_sensor_changed(self, entity_id, old_state, new_state):
         """Handle power sensor changes."""
-        if new_state is None:
+        if new_state is None or new_state.state in (STATE_UNKNOWN, ""):
             return
 
         if new_state.state == old_state.state:
             return
 
-        if new_state.state == STATE_ON and self._speed == SPEED_OFF:
-            self._on_by_remote = True
-            self._speed = None
-            self.async_write_ha_state()
+        new_speed = self.power_to_speed(new_state.state)
 
-        if new_state.state == STATE_OFF:
+        if new_speed is None or new_speed == self._speed:
+            return
+
+        _LOGGER.debug(f"Detected fan speed change via power usage: {new_speed}")
+        self._speed = new_speed
+        if new_speed != SPEED_OFF:
+            self._last_on_speed = new_speed
+            self._on_by_remote = True
+        else:
             self._on_by_remote = False
-            if self._speed != SPEED_OFF:
-                self._speed = SPEED_OFF
-            self.async_write_ha_state()
+        self.async_write_ha_state()
