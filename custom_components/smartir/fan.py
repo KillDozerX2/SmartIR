@@ -25,7 +25,7 @@ from .controller import get_controller
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_NAME = "SmartIR Fan"
-DEFAULT_DELAY = 0.5
+DEFAULT_DELAY = 1.5
 
 CONF_UNIQUE_ID = 'unique_id'
 CONF_DEVICE_CODE = 'device_code'
@@ -33,6 +33,9 @@ CONF_CONTROLLER_DATA = "controller_data"
 CONF_DELAY = "delay"
 CONF_POWER_SENSOR = 'power_sensor'
 CONF_POWER_SWITCH = 'power_switch'
+CONF_DUPLICATING_FAN_SWITCHES = 'duplicating_fan_switches'
+CONF_DUPLICATING_SWITCH_DELAY = "duplicating_switch_delay"
+DEFAULT_DUPLICATING_SWITCH_DELAY = 1.5
 
 SPEED_OFF = "off"
 
@@ -43,7 +46,9 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_CONTROLLER_DATA): cv.string,
     vol.Optional(CONF_DELAY, default=DEFAULT_DELAY): cv.string,
     vol.Optional(CONF_POWER_SWITCH): cv.entity_id,
-    vol.Optional(CONF_POWER_SENSOR): cv.entity_id
+    vol.Optional(CONF_POWER_SENSOR): cv.entity_id,
+    vol.Optional(CONF_DUPLICATING_FAN_SWITCHES): vol.All(cv.ensure_list, [cv.entity_id]),
+    vol.Optional(CONF_DUPLICATING_SWITCH_DELAY, default=DEFAULT_DUPLICATING_SWITCH_DELAY): cv.positive_float,
 })
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
@@ -99,6 +104,10 @@ class SmartIRFan(FanEntity, RestoreEntity):
         self._delay = config.get(CONF_DELAY)
         self._power_switch = config.get(CONF_POWER_SWITCH)
         self._power_sensor = config.get(CONF_POWER_SENSOR)
+        self._duplicating_fan_switches = config.get(CONF_DUPLICATING_FAN_SWITCHES, [])
+        self._duplicating_switch_delay = config.get(
+            CONF_DUPLICATING_SWITCH_DELAY, DEFAULT_DUPLICATING_SWITCH_DELAY
+        )
 
         self._manufacturer = device_data['manufacturer']
         self._supported_models = device_data['supportedModels']
@@ -280,6 +289,48 @@ class SmartIRFan(FanEntity, RestoreEntity):
             await self.hass.services.async_call(
                 "switch", "turn_off", {"entity_id": self._power_switch}, blocking=True
             )
+    async def _delay_for_switches(self):
+        """Sleep asynchronously for the amount of time described in the configuration if there are switches waiting to be removed"""
+        if len(self._duplicating_switch_states) > 0:
+            _LOGGER.warning("Before delay")
+            # Wait before sending new command
+            await asyncio.sleep(self._duplicating_switch_delay)
+            _LOGGER.warning("After delay")
+    async def _prepare_duplicating_switches(self):
+        """Turn off duplicating switches and record their original states."""
+        self._duplicating_switch_states = {}
+
+        for switch in self._duplicating_fan_switches:
+            try:
+                state = self.hass.states.get(switch)
+                if state and state.state == STATE_ON:
+                    self._duplicating_switch_states[switch] = STATE_ON
+                    await self.hass.services.async_call(
+                        "switch", "turn_off", {"entity_id": switch}, blocking=True
+                    )
+                    _LOGGER.debug(f"Turned off duplicating switch: {switch}")
+                else:
+                    self._duplicating_switch_states[switch] = STATE_OFF
+                    _LOGGER.debug(f"Duplicating switch already off: {switch}")
+            except Exception as e:
+                _LOGGER.warning(f"Failed to prepare duplicating switch {switch}: {e}")
+
+        # Delay till next execution
+        await self._delay_for_switches()
+
+    async def _restore_duplicating_switches(self):
+        """Turn on only the switches that were originally on."""
+        # Delay before restoring switches
+        await self._delay_for_switches()
+        for switch, original_state in self._duplicating_switch_states.items():
+            try:
+                if original_state == STATE_ON:
+                    await self.hass.services.async_call(
+                        "switch", "turn_on", {"entity_id": switch}, blocking=True
+                    )
+                    _LOGGER.debug(f"Restored duplicating switch ON: {switch}")
+            except Exception as e:
+                _LOGGER.warning(f"Failed to restore duplicating switch {switch}: {e}")
 
     async def send_command(self):
         async with self._temp_lock:
@@ -288,6 +339,9 @@ class SmartIRFan(FanEntity, RestoreEntity):
             direction = self._direction or 'default'
             oscillating = self._oscillating
 
+            # Turn off duplicating switches and wait
+            await self._prepare_duplicating_switches()
+
             if speed.lower() == SPEED_OFF:
                 command = self._commands['off']
             elif oscillating:
@@ -295,29 +349,32 @@ class SmartIRFan(FanEntity, RestoreEntity):
             else:
                 if (self._on_button):
                     await self._controller.send(self._commands['on'])
-                command = self._commands[direction][speed] 
+                command = self._commands[direction][speed]
 
             try:
                 await self._controller.send(command)
             except Exception as e:
                 _LOGGER.exception(e)
 
+            # Turn back on switches if they were originally on
+            await self._restore_duplicating_switches()
+
     def power_to_speed(self, watts):
         try:
             watts = float(watts)
-            _LOGGER.warning(f"{watts} read from sensor")
+            _LOGGER.debug(f"{watts} read from sensor")
             if watts <= self._power_mapping['off']:
-                _LOGGER.warning(f"Reading zero watts and setting to speed off")
+                _LOGGER.debug(f"Reading zero watts and setting to speed off")
                 return SPEED_OFF
             for speed in self._speed_list:
-                _LOGGER.warning(f"Finding Max Power for Speed {speed}")
+                _LOGGER.debug(f"Finding Max Power for Speed {speed}")
                 max_power = self._power_mapping.get(speed)
-                _LOGGER.warning(f"Found Max Power - {max_power} for Speed {speed}")
+                _LOGGER.debug(f"Found Max Power - {max_power} for Speed {speed}")
                 if max_power is not None and watts < max_power:
-                    _LOGGER.warning(f"Returning Speed {speed}")
+                    _LOGGER.debug(f"Returning Speed {speed}")
                     return speed
         except Exception as e:
-            _LOGGER.warning(f"Error converting power to speed: {e}")
+            _LOGGER.exception(f"Error converting power to speed: {e}")
             return None
 
 
