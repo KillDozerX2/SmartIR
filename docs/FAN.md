@@ -201,3 +201,9 @@ Contributing to your own code files is welcome. However, we do not accept incomp
 | Code | Supported Models | Controller |
 | ------------- | -------------------------- | ------------- |
 [1240](../codes/fan/1240.json)|Air Timer TS+|Broadlink
+
+#### Orient
+
+| Code | Supported Models | Notes |Controller |
+| ------------- | ----- | ----- | ------------- |
+[2000](../codes/fan/2000.json)|Aeon|Speeds `1,2,3,4,5,6` is mapped to `1,2,3,4,5,Boost` on the remote|Broadlink

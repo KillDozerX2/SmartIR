@@ -1,0 +1,38 @@
+{
+    "manufacturer": "Orient",
+    "supportedModels": [
+        "Aeon"
+    ],
+    "supportedController": "Broadlink",
+    "commandsEncoding": "Base64",
+    "speed": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+    ],
+    "commands": {
+        "on": "JgBYAAABIJESERMSEzUTNhMRExETEhM2EjUUNRMSEhITNRM2EjcSERQRExESExISEhMSERMRFBESNxI2EzUTNhM1FDUSNxI2EwAE8AABIkgTAAwDAAEjRxQADQU",
+        "off": "JgBQAAABIo8TEhISEzUUNRITEhISERQ1EzYTNRMSExESNxI2EzYSEhITEhETERQREjcSEhISExETNhI2EzYSNxISEjYTNhI2EwAE8AABIkcUAA0F",
+        "default": {
+            "1": "JgBQAAABIpASEhISEzUUNRITEhISEhM1FDUTNRMSExESNxI2EzYSEhMSEhETNhISExISEhMRExEUNRI2ExITNRM2EzUTNhI3EgAE8QABIUkSAA0F",
+            "2": "JgBQAAABIJESEhMREzYSNhMRExITERI3EjYTNhISEhMSNhM1EzUUERM2EhISNhMRFBESEhMSEhETEhM1ExISNhM2EjcSNRM2EwAE8AABIUkSAA0F",
+            "3": "JgBQAAABIo8UERMREzYTNRMSExESEhM1FDUUNRITEhETNhI3EjYTERMSEjcSNRQRExETEhISEhITNhISEhITNRQ1EjcSNhM2EgAE8QABIkgSAA0F",
+            "4": "JgBQAAABIo8UERMREzYSNhMRFBETERM2EjYTNhISExETNhM2EjUUERM2EjYTNhISEhITEhIRFBETERITEhISNhM2EjcSNhM1EwAE8QABIUgTAA0F",
+            "5": "JgBQAAABIZATERQREjcSNhMREhMSEhI2EzYSNxIRExITNRM1FDUTEhISEhMSERM2EhITEhISEhITNhI2EzUUERI3EjYTNRM2EwAE8AABIUgUAA0F",
+            "6": "JgBgAAABIo8UERMREjcSNhMSExESEhM1FDUTNhITEhETNhI3EjYTERM2EjYTNhM2EhITERMRExITERITEhISEhM1EzYTNRM2EgAE8gABIkgTAAwEAAEiSBMADAUAASFIFAANBQ=="
+        }
+    },
+    "powerMapping": {
+        "off": 0,
+        "1": 5,
+        "2": 8,
+        "3": 15,
+        "4": 25,
+        "5": 30,
+        "6": 35
+    },
+    "powerDebounce": 12
+}
